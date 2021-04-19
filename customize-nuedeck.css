@@ -10,6 +10,7 @@ h2 { color: black; background: var(--tcolor); padding: .2em; font-size: 90%; }
 .overview ol ol { list-style-type: arabic; margin-left: 0em; }
 
 /* integrate? */
+.sorter [data-root] { pointer-events: none; }
 .no-status .slide-number { display: none; }
 blockquote { font-size: 100%; }
 .phantom { font-style: normal; color: transparent;}
