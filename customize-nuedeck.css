@@ -1,0 +1,216 @@
+/* integrate in a theme? */
+:root {
+    --tcolor: #c9daf8;
+    --mcolor: #3c78d8;
+}
+h1 { margin: .5em; }
+h2 { color: black; background: var(--tcolor); padding: .2em; font-size: 90%; }
+
+.overview ol { list-style-type: upper-roman; margin-left: 1em; }
+.overview ol ol { list-style-type: arabic; margin-left: 0em; }
+
+/* integrate? */
+.no-status .slide-number { display: none; }
+blockquote { font-size: 100%; }
+.phantom { font-style: normal; color: transparent;}
+.centered { text-align: center; }
+.footer { position: absolute; left: 0; right: 0; bottom: 0; }
+.halfwidth { display: inline-block; width: 48%; box-sizing: border-box; margin: 0; padding: 0;}
+
+
+.challenge p { margin: 0;}
+.challenge {
+  list-style:none;  background: #FFC; text-align:center;
+  border: 1px solid black; border-radius: .1em; box-shadow: black 0 0 3px;
+  margin: .5em 2em 0 0; padding: .5em;
+}
+
+.floatright { float: right; }
+
+.slide-number {color: #AAA; }
+
+em { font-style: normal; }
+.it { font-style: italic; }
+.no-bullet { list-style: none; }
+.empty { list-style: none; visibility: hidden; }
+
+.gridder { display: flex; flex-wrap: wrap; }
+.gridder .s4 { width: 195px; }
+.gridder .s3 { width: 264px; }
+.gridder .s2 { width: 395px; }
+
+/* plugin? */
+.FS {
+    position: fixed !important;
+    left:0; width:100% !important;
+    top:0; height:100% !important;
+    background: white;
+    z-index: 1; /* in front of katex equations */
+    transition: * 1s;
+    max-width: none !important;
+    max-height: none !important;
+    /*
+    position: fixed;
+    z-index: 1;
+    left:0; right: 0;
+    top:0; bottom:0;
+*/
+}
+.wikipedia-link {
+    opacity: 0.35;
+    font-family: monospace;
+	font-size: 35%;
+	vertical-align: top;
+	position: relative;
+	top: 0.5em;
+	left: -.5em;
+}
+.comment.note {
+    color: #707;
+    font-size: 30px;
+    white-space: pre-wrap;
+}
+.attrib div.img::after {
+    content: attr(data-attribution);
+    font-size: 10px;
+}
+.discard-spaces {
+    display: flex;
+    flex-wrap: wrap;
+}
+.attribute {
+    position: relative;
+    box-sizing: border-box;
+    --b: 5px;
+    --m: 3px;
+    --N: 4;
+    margin: var(--m); padding: 0;
+    display: inline-block;
+    --width: calc((800px - 2*var(--N)*var(--m)) / var(--N));
+    width: var(--width);
+    border: var(--b) solid black;
+    background: #333;
+    z-index: 0;
+}
+.attribute.whitebg div:first-child::before {
+    content: "";
+    display: block;
+    position: absolute;
+    z-index: -1;
+    background-color: white;
+    width: calc(var(--width) - 2 * var(--b));
+    height: calc(var(--width) - 2*var(--b) - 1px);
+}
+.attribute.contain div:first-child {
+    background-size: contain;
+}
+.attribute div:first-child {
+    width: 100%;
+    height: calc(var(--width) - 2*var(--b));
+    background-position: center;
+    background-size: cover;
+    transition: box-shadow 300ms;
+    box-shadow: inset 0 0 20px black;
+}
+.attribute:hover div:first-child {
+    box-shadow: inset 0 0 0px black;
+}
+.attribute div:last-child {
+    color: #DDD;
+    font-size: 12px;
+    padding: .1em .3em;
+    text-align: center;
+}
+/* specific to this presentation or more */
+
+[data-root]>h2 { text-align: center; }
+
+.paper-with-image>h2 {
+    font-size: 22px;
+}
+.paper-with-image>ul:hover {
+    opacity: 0.05;
+}
+.paper-with-image>ul {
+    /*list-style: url('data:image/svg+xml;utf8,<svg><tspan>-</tspan></svg>');*/
+    list-style: square inside;
+    position: absolute;
+    font-size: 17px;
+    padding: .2em 1em;
+    right: 0;
+    bottom: 0;
+    background: rgba(1, 1, 1, .85);
+}
+.paper-with-image>ul li {
+    color: white;
+}
+.paper-with-image.two-lines img:first-of-type {
+    max-height: 528px;
+}
+.paper-with-image img:first-of-type {
+    display: block;
+    margin: 0 auto;
+    text-align: center;
+    max-width: 800px;
+    max-height: 550px;
+}
+
+.alea { color: green; }
+.epi { color: blue; }
+      .light:not(.current-step ~ *):not(.current-step-exact .step:first-of-type:not(.current-step) ~ *) { opacity: 0.6; }
+.not-covered:not(.current-step ~ *):not(.current-step-exact .step:first-of-type:not(.current-step) ~ *) { opacity: 0.5; }
+.helped-svg .floating-help + svg, .helped-svg .floating-help + img {margin-top: -1em;}
+
+.floating-help {
+    /*border: 1px solid black;*/
+    box-shadow: var(--tcolor) -2px 2px 2px;
+    float: right;
+    padding: .25em;
+    max-width: 45%;
+    font-size: 50%;
+    white-space: pre-wrap;
+    margin-top: -1em; /* as it always starts with a new line... */
+}
+
+/* custom styles for the tutorial */
+.hidden { visibility: hidden; } /* TODO in the style as the @anim sets it */
+
+
+.dense { font-size: 80%; }
+.denser { font-size: 60%; }
+.densest { font-size: 40%; }
+
+.katex { color: var(--mcolor); }
+.highlight { color: red }
+
+.red { color: darkred; }
+.green { color: green; }
+.blue { color: blue; }
+
+pad {
+    display: block;
+    width: 0;
+    height: .33em;
+}
+pen::after, .pen::after {
+    content: "🖊";
+    font-weight: bold;
+}
+pen.big, .pen.big {
+    font-size: 300%;
+}
+
+.fullimg img { width: 800px; max-height: 500px; }
+
+
+
+/*
+  .red { color: darkred; }
+        .green { color: green; }
+        .yellow { color: yellow; }
+        .shadowed { text-shadow: royalblue 2px 2px 4px; }
+        code { font-size: 80%; font-family: monospace; }
+        li.src { list-style: none; margin: .4em 0 .2em -1em; }
+        li.src>pre, li.src>code {  border: 2px solid #383; border-radius: 2px; padding: .1em; background: #EEE; color: #111; font-size: 75%;}
+        li.src>pre { margin-right: 2em;}
+*/

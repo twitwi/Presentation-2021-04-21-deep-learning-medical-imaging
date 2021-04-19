@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <link rel="icon" href="favicon.ico">
+
+    <link rel="stylesheet" href="./nuedeck/nuedeck-theme.css">
+    <link rel="stylesheet" href="./nuedeck/katex.min.css">
+
+    <title>Bayesian Neural Networks - Uncertainty Quantification</title>
+    <meta name="author" content="Rémi Emonet">
+    <meta name="author-from" content="Hubert Curien Laboratory">
+    <meta name="venue" content="Deep learning for medical imaging school">
+    <meta name="date" content="2021-04-21">
+
+    <script src="customize-nuedeck.js"></script>
+    <link rel="stylesheet" href="customize-nuedeck.css">
+    <style>
+        :root {
+            /*--nuedeck-core-fitMargin: [0, 0, 0, 266];/*+266px so in 1080 it is ~479px;*/
+        }
+        .qr.footer { width: 20px; left: auto; right: 0; }
+        .qr.footer:not(:hover) { filter: grayscale(85%); }
+        .qr.footer:hover { width: 600px; transition: width 400ms;}
+    </style>
+
+  </head>
+  <body>
+    <!-- This is the mount point, it will be replaced by an element with class nuedeck -->
+    <div id="nd-container"></div>
+
+    <!-- To add something to the container -->
+    <template class="nd-addon">
+      <!--<status-bar :current="currentSlide"></status-bar>-->
+      <annotator :current="nd.currentSlide"></annotator> <!-- :current for a per slide behavior -->
+      <help-area></help-area>
+    </template>
+
+    <!-- To add something to every slide -->
+    <template class="nd-addin">
+      <status-bar></status-bar>
+      <img src="media/qr-github-pres.svg" class="qr footer"/>
+    </template>
+
+    <!-- To author slides -->
+    <template class="nd-source">
+
+@///////// TITLE
+@: .title-slide /no-status
+# <span v-html="$f.br(nd.vars.title)"></span> // comment
+- {{ nd.vars.author }} − {{ nd.vars['author-from'] }}
+- {{ nd.vars.venue }}
+- {{ nd.vars.date }}
+
+(press <span v-html="$f.renderShortcut('nextStep')"></span> to play)
+{.comment style=font-size:65%}
+
+<img class="footer" src="media/logos-bar.svg" width="800"/>
+
+
+@///////// END
+@: .title-slide .centered /no-status
+@for-copy
+@: #endslide
+# <span v-html="$f.br(nd.vars.title)"></span> *// comment* {.centered}
+- {{ nd.vars.author }} − {{ nd.vars['author-from'] }}
+- {{ nd.vars.venue }}
+- {{ nd.vars.date }}
+- {.no-bullet}
+- {.no-bullet}
+
+<local-style>
+    .hoverzoom2 { transition: transform 500ms; transform-origin: bottom right; }
+    .hoverzoom2:hover { transform: scale(2,2); }
+</local-style>
+<div class="floatright centered hoverzoom2" style="font-size: 50%; overflow: visible; width: 200px; margin-left: -200px;">
+    <img src="media/qr-github-pres.svg"/>
+    <br/>
+    <a href="https://github.com/twitwi/Presentation-2021-04-21-deep-learning-medical-imaging" target="_blank">(presentation page)</a>
+    <br/> or go to:
+    <br/> <a href="https://home.heeere.com">home.heeere.com</a>
+</div>
+
+THANK YOU!
+{.centered}
+
+{{$o.MORE}}
+{.centered}
+
+
+<img class="footer" src="media/logos-bar.svg" width="800"/>
+
+
+@////////////////////////////////////////
+@////////////////////////////////////////
+@////////////////////////////////////////
+@/////////////////////// overview/plan //
+@////////////////////////////////////////
+@sticky-add: @:.libyli
+@eval-header: part = 0
+@for-copy
+@: #global .no-libyli .overview
+## <span v-html="$f.br(nd.vars.title)"></span> (Overview)
+1. Why we need to quantify uncertainty?
+1. Some sources of uncertainty
+1. Statistical machine learning approaches \
+   for general uncertainty modeling
+1. Deep Learning practices for uncertainty modeling
+1. Bayesian Neural Networks
+   1. Bayesian view of machine learning
+   1. Variational inference
+   1. Variational Dropout
+
+1. Applications and Openings
+
+@////////////////////////////////////////
+@////////// Motivation
+@eval-header: return highlightLi(part+=1)
+# @copy: global
+
+## Why we need uncertainty quantification?
+<local-style>
+    .illus:first-of-type { margin-top: -100px;}
+    .illus { width: 180px; float: right; clear: both; margin: .2em;}
+    .uillus { margin-left: 200px; height: 100px;}
+</local-style>
+
+- Automated systems raise questions from experts
+  - Can I trust the predictions? // accuracy, and more generally everything
+  - Is the system confident in its prediction?
+  - How was the decision taken? {.not-covered}
+
+<img src="media/ccetc/illus-ct-scan.jpg" class="illus"/>
+<img src="media/ccetc/illus-mri-scan.jpg" class="illus"/>
+<img src="media/ccetc/illus-pediatrics.jpg" class="illus"/>
+
+<img src="media/ccetc/illus-uncertainty-sign.jpg" class="uillus"/>
+
+- Good decision making is based on some assessment of uncertainties
+  - Medical diagnosis
+  - Asymmetric costs situations
+  - Benefit/risk evaluation
+  - Multi-factorial decisions
+  - Self driving cars
+  - ...
+
+
+
+
+@////////////////////////////////////////
+@////////// Sources of uncertainty
+@eval-header: return highlightLi(part+=1)
+# @copy: global
+
+## What is uncertainty?
+> Uncertainty refers to epistemic situations involving **imperfect or unknown information**.
+> \
+> \
+> It applies to predictions of **future events**, to **physical measurements** that are already made, or to the **unknown**. \
+> Uncertainty arises in partially observable and/or stochastic environments, as well as due to **ignorance, indolence, or both**. \
+> \
+> It arises in any number of fields, including insurance, philosophy, physics, **statistics**, economics, finance, psychology, sociology, **engineering**, metrology, meteorology, ecology and information science.
+> <a href="https://en.wikipedia.org/wiki/Uncertainty" target="_blank"><cite>wikipedia</cite></a>
+// machine learning is engineering of statistical software
+
+## Sources of Uncertainty in Models
+- Traditional ideal (deterministic) models, like rules in physics
+  - e.g., $x_{t+1} = f(x_{t})$ (e.g., dynamics, $f$ includes gravity etc)
+  - e.g., $Y = f(X)$ (e.g., ideal gas law, <w href="Ideal_gas_law">$PV = nRT$</w>)
+- Sources of uncertainty around statistical models? {.libyli}
+  - Examples
+    - stochastic (non-deterministic) environment // e.g., when flipping a coin), not deterministic {.will-alea}
+    - "sensors": partial observations, noisy observations // or flipping a coin also* (e.g., an image gives the position of a car but no speed) {.will-alea}
+    - limited data (e.g., estimate the fairness of a dice from only 2 throws) // epistemic {.will-epi}
+    - modeling: incomplete/partial/imprecise (or even wrong) model *// (e.g., friction prop. to velocity)* {.will-epi}
+      - imprecision in the model (e.g., value of $\pi$ in $\mathcal{A} = \pi r^2$) {.will-epi}
+    - more... // do you see more (a way of replacing their suggestions in the boxes, or creating new boxes)
+  - Usual categories
+    - Aleatoric (statistical) uncertainty... from things we cannot know {.will-alea}
+    - Epistemic (systematic) uncertainty... from things we could know {.will-epi}
+    - @anim: %+alea: .will-alea +
+    - @anim: %+epi: .will-epi
+  
+  {.dense}
+
+
+@:.__slide_8271826
+## Uncertainty Types: a simplified view
+<local-style> /* not really local, hence the class */
+.__slide_8271826 em { opacity: 0.35; }
+</local-style>
+
+- Aleatoric *(statistical)* uncertainty {.alea}
+  - "true" inherent randomness
+  - w.r.t. our observables, inputs and "ground truth" outputs
+  - no amount of data can remove this uncertainty
+
+- Epistemic *(systematic)* uncertainty {.epi}
+  - not enough "training" data
+  - wrong/simplified modeling assumptions
+
+- **Today's challenge**\
+  Learn a model under **aleatoric**{.alea} and **epsitemic**{.epi} uncertainty {.challenge}
+
+- NB: a task we won't cover in this talk, Uncertainty Propagation {.dense .not-covered}
+  - given an actual model (manually specified / already learned)
+  - propagate the uncertainty from a given input to the output prediction
+  
+
+@:.helped-svg
+## Uncertainty in Machine Learning: regression (1D "input", single "output")
+<help>
+ - <span class="alea">Aleatoric</span>/statistical = "true" inherent randomness
+ - <span class="epi">Epistemic</span>/systematic = missing data, bad model
+</help>
+<img src="media/toy-1d-dataset.svg" width="800"/>
+
+@:.helped-svg
+## Uncertainty in Machine Learning: classification (2D "input", binary)
+<help>
+ - <span class="alea">Aleatoric</span>/statistical = "true" inherent randomness
+ - <span class="epi">Epistemic</span>/systematic = missing data, bad model
+</help>
+<img src="media/set1/toy-2d-dataset.svg" width="800"/>
+
+@:.helped-svg
+## Toy 2D-Dataset: *Aleatoric*{.alea} Uncertainty
+<help>
+ - <span class="alea">Aleatoric</span>/statistical = "true" inherent randomness
+ - <span class="epi">Epistemic</span>/systematic = missing data, bad model
+</help>
+<img src="media/set1/aleatoric-uncertainty.png" width="800"/>
+
+@:.helped-svg
+## Toy 2D-Dataset: *Epistemic*{.epi} Uncertainty
+<help>
+ - <span class="alea">Aleatoric</span>/statistical = "true" inherent randomness
+ - <span class="epi">Epistemic</span>/systematic = missing data, bad model
+</help>
+<img src="media/set1/global-epistemic-uncertainty.png" width="800"/>
+
+## A Quick Visual Summary on Uncertainty 
+<help>
+ - <span class="alea">Aleatoric</span>/statistical = "true" inherent randomness
+ - <span class="epi">Epistemic</span>/systematic = missing data, bad model
+</help>
+
+- *Aleatoric uncertainty*{.alea} in regions of class overlap
+- *Epistemic uncertainty*{.epi} when OOD (out of distribution)
+  <br/> - encompasses many different situations
+  <br/> - NB: no perfect specification of what to do for OOD
+  
+- *Epistemic uncertainty*{.epi} in regions of low data
+  <br/> - especially with class imbalance, etc.
+  <br/> - possibly combined with aleatoric
+{.denser style="clear:both; float:right; width: 380px; margin-left: -1.5em;"}
+
+<img src="media/set1/aleatoric-uncertainty.png" width="395" />
+<img src="media/set1/global-epistemic-uncertainty.png" width="395" class="step"/>
+<img src="media/set1/aleo-epistemic-uncertainty.png" width="395"/>
+
+
+## How Neural Nets do Classification? *(reminder) (example with 3 classes)*{.dense}
+<img src="media/nns/nn-softmax.svg" width="800" height="450"></img>
+
+- @anim: NOPE | #softmax | #output | #logits 
+- $o = softmax(l) \Leftrightarrow \forall i, o_i = \frac{\exp(l_i)}{\sum_j{\exp(l_j)}}$ {style="margin-top: -1em;"}
+
+## A Probability for each class?
+<img src="media/nns/nn-softmax.svg" width="800" height="200"></img>
+
+- A probability vector is better than just predicting a class
+  - parallel with a regression setting
+    - instead of predicting a single output value
+    - predict a distribution (e.g., a mean and variance)
+- But... ambiguity: *aleatoric*{.alea} vs *epistemic*{.epi}
+  - what is *actually uncertain*{.alea} *(in the current representation space)*{.dense}
+  - what the model *doesn't know*{.epi}
+- A probability vector cannot convey all information {.challenge}
+
+(but a good probability vector can be enough for some decision making)
+{.denser .centered style="margin-top: -1em"}
+
+## 50% dog, 50% plane?
+- *aleatoric*{.alea} vs *epistemic*{.epi}
+- Example setup
+  - a model trained to distinguish 2 classes, dog vs plane
+  - on a new image, the network predicts 50%/50%
+  - two possible situations
+
+Case 1 !<br/>
+<img src="media/ccetc/dog-plane.jpg" width="300"></img>
+{.halfwidth .centered .will-alea .step}
+
+Case 2 !<br/>
+<img src="media/ccetc/house-with-number.jpg" width="300"></img>
+{.halfwidth .centered .will-epi .step style="vertical-align: top"}
+
+@anim: %+alea: .will-alea
+
+@anim: %+epi: .will-epi +
+
+
+## ReLU Networks are Overconfident (Hein et al., CVPR2019)
+<img src="media/ccetc/cifar-to-svhn-relu.png" width="600" ></img>
+
+<img src="media/ccetc/two-moons-confidence.png" width="200" class="moons"></img>{style="position: absolute; top: 10px; right: 0;"}
+
+- Over-confident predictions
+- A deep model doesn't know *what it doesn't know*{.epi} {.challenge}
+
+@anim: .moons
+
+- NB: it is also over-confident in *regions of inherent uncertainty*{.alea} {.dense}
+
+( Image from the companion-webpage https://github.com/max-andr/relu_networks_overconfident of:
+  <br/> *Why ReLU networks yield high-confidence predictions far away from the training data and how to mitigate the problem*{.dense}) {.denser .centered}
+
+
+@////////////////////////////////////////
+@////////// ML approaches
+@eval-header: return highlightLi(part+=1)
+# @copy: global
+
+@//NOT SURE <w href="Scoring_rule">Proper Scoring Rules</w>
+@//- <pen></pen> // points, with overlap, logistic like, 
+## (Re)Calibrating a Trained Model $f$
+- Goal: properly *quantifying aleatoric uncertainty*{.alea}
+- Calibration = for every $x$, make the two following match, 
+  - the predicted output probably $f(x)$ from the model
+  - and the actual class probability position $p(y|x)$
+  - ⇒ "expected calibration error"
+  - need binning (or density estimation) for estimation <br/> 
+  {.dense}
+- Possible solutions
+  - re-fit/tune the likelihood/last layer (logistic, Dirichlet, ...)
+  - e.g., fine tune a softmax temperature {.libyli}
+    -  {.pen .no-bullet}
+    - $o = softmax_t(l) \Leftrightarrow \forall i, o_i = \frac{\exp(l_i /t)}{\sum_j{\exp(l_j/t)}}$
+    - $t \rightarrow{} \infty$ <br/>⇒  $exp(.) \rightarrow{} 1$ <br/>⇒  $o \rightarrow{} uniform()$
+    - $t \rightarrow{} 0$  ⇒  $softmax \rightarrow{} max$
+  {.dense}
+  
+
+
+## Dataset Shift, Domain Adaptation, Transfer Learning *(not today's focus)*{.dense}
+- Dataset shift
+  - the "target" set is different from the training set
+  - out of distribution situation
+  - *.*{.pen}
+- Solution
+  - Unsupervised domain adaptation (UDA)
+    - use unlabeled target data to adapt
+  - Usual approach
+    - reduce the discrepancy <br/>between source and target datasets
+    - a natural fit for the Optimal Transport theory 
+    - or, tune the classifier to become certain on data points
+
+<note>
+- draw same dataset, with learned classifier
+- draw target dataset with an offset
+- show that classifier fails
+- say UDA is about adapting the classifier or mapping the data
+- mention optimal transport
+- also more generally transfer learning, possible different weights or different costs -> can include recalibration here, i.e. re-learning a temperature (need to explain what it is... replacing/recalibrating the softmax... might also need to tune a per class pre-softmax bias?)
+</note>
+
+
+@////////////////////
+## Ensemble methods
+
+- General principle
+  - learn several models
+  - "average" their predictions // can do better, e.g. learning weights in boosting
+
+- Typical Approach: Bagging (*bootstrap aggregating*)
+  - Sample several dataset, with replacement (bootstrap) // TODO DRAW, use it as the canonical example
+  - Average model predictions
+  - Random Forests
+    - maybe the most know bagging model
+    - ensemble of decision trees
+    - additionally use "feature bagging" // use a subset of features each time
+
+- NB on boosting (e.g., AdaBoost) (not a simple average) // to be sure there is no confusion and to say that it learns the weights? {.dense .not-covered}
+  - use just-better-than-random models
+  - iteratively train with re-weighted datasets
+  - learn the weights of the models
+
+## Logistic Regressor Bagging Example
+<img src="media/set2/all-classifiers-_logisticregression_.svg" width="395" class="step"/>
+<img src="media/set2/ensemble-_logisticregression_.svg" width="395" class="last"/>
+<img src="media/set2/estimator0-_logisticregression_.svg" width="395" class="step"/>
+<img src="media/set2/estimator1-_logisticregression_.svg" width="395" class="step"/>
+
+@anim: .last
+
+## Support Vector Machines (SVM) Bagging Example
+<img src="media/set2/all-classifiers-_sgdclassifier_.svg" width="395" class="step"/>
+<img src="media/set2/ensemble-_sgdclassifier_.svg" width="395" class="last"/>
+<img src="media/set2/estimator0-_sgdclassifier_.svg" width="395" class="step"/>
+<img src="media/set2/estimator1-_sgdclassifier_.svg" width="395" class="step"/>
+
+@anim: .last
+
+## SVM Bagging Example with polynomial features (kernel) // deg3
+<img src="media/set2/all-classifiers-_sgdclassifier,p=3_.svg" width="395" class="step"/>
+<img src="media/set2/ensemble-_sgdclassifier,p=3_.svg" width="395" class="last"/>
+<img src="media/set2/estimator0-_sgdclassifier,p=3_.svg" width="395" class="step"/>
+<img src="media/set2/estimator1-_sgdclassifier,p=3_.svg" width="395" class="step"/>
+
+@anim: .last
+
+## Multi-Layer Perceptron (MLP) Bagging Example // [100, 50, 20]
+<img src="media/set2/all-classifiers-_mlpclassifier_.svg" width="395" class="step"/>
+<img src="media/set2/ensemble-_mlpclassifier_.svg" width="395" class="last"/>
+<img src="media/set2/estimator0-_mlpclassifier_.svg" width="395" class="step"/>
+<img src="media/set2/estimator1-_mlpclassifier_.svg" width="395" class="step"/>
+
+@anim: .last
+
+## Very-Deep MLP Bagging Example // [10]*10
+<img src="media/set2/all-classifiers-_mlpclassifierdeep_.svg" width="395" class="step"/>
+<img src="media/set2/ensemble-_mlpclassifierdeep_.svg" width="395" class="last"/>
+<img src="media/set2/estimator0-_mlpclassifierdeep_.svg" width="395" class="step"/>
+<img src="media/set2/estimator1-_mlpclassifierdeep_.svg" width="395" class="step"/>
+
+@anim: .last
+
+
+## Summary on bagging
+<img src="media/set2/ensemble-_sgdclassifier_.svg" width="260" class="step"/>
+<img src="media/set2/ensemble-_sgdclassifier,p=3_.svg" width="260" class="step"/>
+<img src="media/set2/ensemble-_mlpclassifierdeep_.svg" width="260" class="last"/>
+
+- Bagging nicely handles quantifying *aleatoric uncertainty*{.alea} {.challenge}
+- It works even with overconfident base models
+- The sampling creates the necessary noise in *boundary regions*{.alea}
+
+- The model family controls Bagging's *Out of Distribution behavior*{.epi} {.challenge}
+- Simple models have low OOD variety ⇒ 100% over-confidence
+- Complex/varied models/features better assess *epistemic uncertainty*{.epi}
+- However, still a major OOD over-confidence *(like most discriminative models)*{.dense}
+{.dense}
+
+
+@: .slide_75663798
+## Zooming out to see Out Of Distribution Over-confidence
+<local-style>
+.slide_75663798 .s3 {height: 150px;}
+</local-style>
+<div class="gridder">
+<img src="media/set2/ensemble-_zoomed-out_-_logisticregression_.svg" class="s3 step"/>
+<img src="media/set2/ensemble-_zoomed-out_-_sgdclassifier,p=3_.svg" class="s3 step"/>
+<img src="media/set2/ensemble-_zoomed-out_-_mlpclassifier_.svg" class="s3 step"/>
+<img src="media/set2/ensemble-_zoomed-out_-_mlpclassifierdeep_.svg" class="s2 step"/>
+<img src="media/set2/possible-expected-ood-_zoomed-out_.svg" class="s2 step"/>
+<img src="media/set2/ensemble-_mlpclassifierdeep_.svg" class="s3 step"/>
+<ul style="width:calc(260px + 2em); display: inline-block; padding: 0; margin: 0; margin-left: -1em;" class="denser last">
+<li>Purely-discriminative models fail at OOD</li>
+<li><i>We will ignore this issue for some time</i><br/> </li>
+<li class="solutions">Some solutions
+<br/>- Use Gaussian Processes
+<br/>- Combine with one-class / density est.
+<br/>- Force doubt on generated OOD samples
+</li>
+</ul>
+<img src="media/set2/possible-expected-ood.svg" class="s3 step" style="margin-right: -1em;"/>
+</div>
+
+@anim: .last | .solutions
+
+
+@////////////////////////////////////////
+@////////// Deep uncertainty (restart, dropout, minibatch, etc)
+@eval-header: return highlightLi(part+=1)
+# @copy: global
+
+## Learning Ensembles of Deep Models
+
+- <img src="media/loss-landscape.svg" width="300" class="floatright"/> Re-seeding for stochastic methods
+  - works very well in practice
+  - resource intensive (mem., process)
+  - some variations/optimizations
+    - snapshot + cyclic learning rate
+    
+- <img src="media/loss-landscape-_simpler-model_.svg" width="300" class="floatright"/> Different families of models
+  - different hyper-parameters
+  - different architectures
+
+@: .slide_66893590 .dense
+## Stochastic Learning as Model Ensembling
+<local-style>
+.slide_66893590 svg {box-sizing: border-box; }
+.slide_66893590 svg {box-shadow: 0 0 2px black;transform: scale(.95, .95); padding: 0.5vh;}
+</local-style>
+<div class="gridder">
+<img src="media/nns/dropout-full.svg" class="s2 step"/>
+<div class="gridder s2">
+<img src="media/nns/dropout-drop1.svg" class="s4 step"/>
+<img src="media/nns/dropout-drop2.svg" class="s4 step"/>
+<img src="media/nns/dropout-drop3.svg" class="s4 step"/>
+<img src="media/nns/dropout-drop4.svg" class="s4 step"/>
+</div>
+</div>
+
+- Dropout: simultaneously training "$2^N$ models" (with shared parameters)
+  - randomly set weights or activations to 0 *(for every SGD sample)*{.dense}
+  - NB: often, "weight scaling rule" at test time -> very bad, no uncertainty
+  - NB: dropout should be applied at test time (costly)
+- Other sources of stochasticity and ensembling
+  - (mini-)Batch normalization  // an input is treated differently based on the others that were drawn to make the minibatch
+  - Stochastic (minibatch) Gradient Descent // form of bagging? simulating different training set
+
+## Diverse vs Local Ensembling
+- <img src="media/loss-landscape.svg" width="300" class="floatright"/> Re-seeding, Dropout, ... <br/>⇒  diverse ensemble
+- Mode fitting (local diversity)
+  1. learn a single model
+  1. estimate the local loss landscape
+  1. create several perturbations of the model
+  1. use all the models as an ensemble
+
+- Bayesian Neural Networks (BNN)
+  - "dense" ensemble // more detail after
+  - can be both local or diverse
+
+
+
+
+
+@////////////////////////////////////////
+@////////// BNN
+@eval-header: part+=1 ; subpart = -1
+@eval-header: return highlightLi(part, subpart+=1)
+# @copy: global
+
+@////////////////////////////////////////
+@////////// BNN: Bayesian view
+@eval-header: return highlightLi(part, subpart+=1)
+# @copy: global
+
+## The two rules in probabilities and Bayes'
+<img class="floatright" src="media/bayes-neon.jpg" width="250" style="margin-top: 10px; box-shadow: -3px 3px 6px #111;">
+
+- "Bayesianism"
+  - Everything as random variables
+  - Use (conditional) probabilities ... a lot // A generalization of traditional logic
+  - .{.empty}
+- Two probability rules
+    - .{.empty}
+    - Product rule:
+      $P(A, B) = P(A|B) ~ P(B)$ <span class="app">= $P(B|A) ~ P(A)$</span>
+      {.dense}
+    - .{.empty}
+    - Marginalization, Sum rule:
+      $P(B) = \sum_A P(A,B) \triangleq \sum_a P(A=a,B)$
+      {.dense}
+    - @anim: .floatright +
+- And in the <w href="Bayes'_theorem">Baye's rule</w> bind them *// essentially the product rule*
+  - .{.empty}
+  - $P(A|B) = \frac{P(B|A) ~ P(A)}{P(B)} = \frac{P(B|A) ~ P(A)}{\displaystyle \sum_A P(B|A) ~ P(A)}$
+  - .{.empty .denser}
+- NB: Exactly the same holds with probability densities (for continuous random variable) {.denser}
+
+## Principle of Bayesian "Learning"
+<img class="floatright" src="media/bayes-neon.jpg" style="margin-top: -20px; box-shadow: -3px 3px 6px #111; width: 180px;">
+
+- Use probabilities to
+  - represent non-deterministic laws
+  - represent uncertainty (*aleatoric*{.alea} and *epistemic*{.epi})
+  - reason about uncertainty (do learning, inference)
+  {.dense}
+- Considering
+  - some parameters (e.g., weights of the network, $W$)
+  - some dataset (e.g., both training inputs and labels, $X$)
+- We have *﹏*{.pen}
+  - $P(W|X) = \frac{P(X|W) ~ P(W)}{P(X)} \propto P(X|W) ~ P(W)$
+- More verbosely
+  - $P_{posterior}(weights | trainset) = \frac{P_{likelihood}(trainset|weights) ~ P_{prior}(weights)}{P_{constant}(trainset)}$
+{.denser .no-bullet .challenge}
+- Posterior probability
+  - probability distribution of the parameters given the training set
+  - i.e. what we know about the parameters after seeing the training set
+  {.dense}
+
+## Principle of Bayesian Neural Networks
+
+<img src="media/nns/bnn-simple.svg" width="800" height="400" class="step"/>
+
+@anim:  .weight | .bump | #small-bumps
+
+- Typical BNN: have a 1D Normal distribution on each weight
+  - 1 mean and 1 variance per weight
+  - 1 billion weights ⇒ 2 billions parameters
+
+{style="margin-top: -.2em;" }
+
+@////////// BNN: VI
+@eval-header: return highlightLi(part, subpart+=1)
+# @copy: global
+
+## Training a Bayesian Neural Network
+<img src="media/nns/bnn-simple.svg" width="250" class="floatright" style="margin-top: -20px"/>
+
+- Bayesian "learning" {.libyli}
+  - Goal: finding the <br/> *posterior distribution on the parameters*{.it}
+    <pad></pad>
+  - $P_{posterior}(weights | trainset)$
+    <pad></pad>
+    $= \frac{P_{likelihood}(trainset|weights) ~ P_{prior}(weights)}{P_{constant}(trainset)}$ 
+    <pad></pad>
+  - Prediction for a new input $x$
+    <pad></pad>
+    $f_{posterior}(x) = \int f_{weights}(x) \cdot P_{posterior}(weights|trainset)$
+- Variational Inference (VI) *(or Stochastic Gradient Variational Bayes, SGVB)*{.dense .light} {.libyli}
+  - Parameterize *$P_{posterior}(weights | trainset)$*{.dense},
+    <br/>e.g., a *$\cal{Normal}$*{.dense} per weight   ⇒   1 billion means and variances
+    <pad></pad>
+  - Do stochastic gradient descent (SGD)
+    <pad></pad>
+  - Sample a weight at every forward pass
+    <br>i.e., approximate the $\int \cdots ~ ~$ by a single sample
+  
+{.dense}
+
+@/////////// TODO prévenir que pas bcp de résultats, plutôt les concepts?
+## Variational Inference: BNNs vs VAE
+- Compared to Variational Autoencoders (VAE) {.libyli}
+  - Also use the "reparameterization trick"
+    - change $w \sim \cal{N}(μ, σ^2)$   to   $ε \sim \cal{N}(0, 1) ~;~ w = μ + ε . σ$
+    - allow the gradient to "flow" to $w$ and $σ$
+      <br/>*(VAE: allow the gradient to flow to the encoder)*{.light}
+  - Model distribution on millions of parameters
+    <br/> *(VAE: distribution on latent variables, only a few, but for each data point)*{.light}
+  
+  - No per-data (latent) variables ⇒ no need for amortization
+
+{.dense}
+
+
+@////////// BNN: Variational Dropout
+@eval-header: return highlightLi(part, subpart+=1)
+# @copy: global
+
+## Dropout and Bayesian Neural Networks
+- Traditional (weight) dropout
+  - for each weight, "set" it to 0 with a probability $1-p$
+  - at test time, multiply weights by $p$ (weight scaling rule)
+    <br></br>
+  {.dense}
+- Interpretation as a (fixed) distribution
+  - $w_i \sim \cal{Mixture}_p(0, v_i)$, or
+    <br/> $ε_i \sim Bernoulli(p) ~;~ w_i = ε_i \cdot v_i$ (reparameterized)
+    <pad></pad>
+  - Bayesian implication: apply dropout at test time {.step .libyli}
+    - (sometimes called "monte carlo dropout") {.no-bullet}
+    - $f_{posterior}(x) = \int f_{w}(x) \cdot P_{posterior}(w|trainset)$
+    - $f_{posterior}(x) = \mathbb{E}\_{w\sim P_{posterior}(w|trainset)} \left\[ f_{w}(x)\right\]$
+    - $f_{posterior}(x) \approx \frac{1}{D} \sum_{j=1}^D f_{w^j}(x)$ with $w^j \sim P_{posterior}(w|trainset)$
+    - $f_{posterior}(x) \approx \frac{1}{D} \sum f_{v^j\cdot ε^j}(x)$ with $ε^j_i \sim Bernoulli(p)$
+    {.dense}
+    
+@///// TODO OTHER DROPOUTS (e.g., normal noise, structured sparsity?)
+## Bayesian Treatment of Dropout
+- Bayesian approach, reminder: everything is a random variable
+- Treat $p$ as a random variable (during "training")
+  - first, how many $p$ do we want to use?
+    - a single $p$ for the whole network
+    - **a $p$ per layer**
+    - a $p$ per weight
+  - learn the posterior on the parameters $θ$, including $p$ {.step}
+    - $θ = \\{ W, p \\} $
+    - $P(θ|trainset) \propto P_{likelihood}(trainset|θ) \cdot P_{prior}(θ)$
+    -    ⇒  need a prior... that acts as a natural regularization
+  - non trivial optimization *// proportional can be costly, unless conjugate prior*
+    <pad></pad> {.step}
+- A variety of dropout: Bernoulli, Gaussian (multiplicative) dropout, sparsifying prior, ...
+
+(e.g. Learnable Bernoulli Dropout for Bayesian Deep Learning) {.light .dense .centered}
+
+## Bayesian Neural Networks (BNNs): Summary
+- Bayesian treatment of neural networks
+  - consider each weight as a random variable
+  - formulate a prior on the weights
+  - observe some (training) data, and given that...
+  - ... infer the (posterior) knowledge on these weights
+  - use this knowledge for prediction
+  - .{.empty}
+- Several flavors, including
+  - Dropouts
+    - Bernouilli or gaussian
+    - learnable dropout parameters // down to each weight
+    - using prior to encourage network sparsity
+  - *$\cal{Normal}$*{.dense} modeling of each weight
+  - .{.empty}
+- Learning, inference, testing
+  - train by gradient descent (SGD) on the "variational" parameters // usually
+  - use sampling at test time to produce several predictions
+  {.dense}
+    
+@////////////////////////////////////////
+@// Going further
+@eval-header: return highlightLi(part+=1)
+# @copy: global
+
+
+@: no-libyli .paper-with-image .two-lines
+## Estimating Uncertainty and Interpretability in Deep Learning for Coronavirus (COVID-19) Detection
+<img src="media/shots/arxiv-2003.10769.png"/>
+
+- (Biraja Ghoshal, Allan Tucker)
+- dropweight on a BCNN
+- improve classification
+- good quantification
+- human/machine combination
+
+
+
+
+@: .no-libyli .paper-with-image .two-lines
+## Towards safe deep learning: accurately quantifying biomarker uncertainty in neural network predictions
+<img src="media/shots/arxiv-1806.08640.png"/>
+
+- (Zach Eaton-Rosen, Felix Bragman, Sotirios Bisdas, Sebastien Ourselin, M. Jorge Cardoso)
+{style="max-width:300px"}
+
+@: .no-libyli .paper-with-image
+## ... (cont)
+<img src="media/shots/arxiv-1806.08640-2.png"/>
+
+
+
+@: .no-libyli .paper-with-image .two-lines
+## Propagating uncertainty across cascaded medical imaging tasks for improved deep learning inference
+<img src="media/shots/mcgill-unsure-2019.png"/>
+<img src="media/shots/mcgill-unsure-2019-2.png" height="270"/>
+
+- Raghav Mehta, Thomas Christinck, Tanya Nair, Paul Lemaitre, Douglas L. Arnold, Tal Arbel
+{style="max-width:300px"}
+
+
+## Gaussian processes (GP)
+<img class="simple" src="media/shots/gp-simple-periodic.png" style="float: right; max-width: 380px; clear:right;"/>
+<div class="deep centered" style="float: right; max-width: 400px; clear: right; font-size: 13px;">
+    <img src="media/shots/gp-deep-gp.png" style="max-width: 400px;" />
+    (Avoiding pathologies in very deep networks, Duvenaud et al.)
+</div>
+
+- GP = Infinitely-wide BNN
+- Well formalized
+  - closed forms
+  - lot of works around scaling
+- @anim: .simple +
+- Allows to include prior learning
+- Probabilistic, can be combined "easily"
+- @anim: .deep +
+- Deep GP avoid too much kernel choice
+
+{.dense}
+
+<img src="media/shots/inverse-problems-gp.png" style="max-width: 350px; display: block; margin:auto;"/>
+
+
+## Going beyond probabilities?
+- Probabilities are a way of represent belief
+- It might be necessary to also represent confidence
+- Some possible directions
+  - <w href="Imprecise_probability">Imprecise Probabilities</w>
+  - <w href="Dempster–Shafer_theory">Dempster–Shafer Theory (DST)</w>
+    - theory of belief functions
+    - evidence theory
+
+## Evidential Deep Learning
+- Principle
+  - *instead of:*{.denser} predicting the parameters of an *(aleatoric)*{.alea .dense} distribution
+  - *do:*{.denser} predict a distribution over these parameters
+- A way of learning/representing *epistemic*{.epi} uncertainty on *aleatoric*{.alea} uncertainty {.dense}
+- Comments {.comment}
+  - Related to <w href="Dempster–Shafer_theory">Dempster–Shafer Theory (DST)</w>
+  - Related to hierarchical Bayesian models, but only on the output
+  - BNN are different as they learn a distribution on weights (or an ensemble)
+
+<img src="media/evidential-regression.png" width="700" style="display: block; margin:auto;"/>
+
+(e.g., Deep Evidential Regression (above))<br/>
+(e.g., Evidential Deep Learning to Quantify Classification Uncertainty) {.light .dense .centered}
+
+
+
+@// Pick from (and even give the link)
+@// https://github.com/JunMa11/MedUncertainty
+@off
+## NOPE
+
+
+
+@eval-header: $o.MORE = '...'
+# @copy: endslide
+
+## Attribution
+<div class="discard-spaces" style="overflow-y: scroll; margin-right: -50px; max-height: 550px;">
+<attribute src="media/ccetc/illus-mri-scan.jpg" href="https://www.flickr.com/photos/usnavy/50191386138/sizes/l/" content="CC by Official U.S. Navy Imagery (Flickr)"></attribute>
+<attribute src="media/ccetc/illus-ct-scan.jpg" href="https://www.flickr.com/photos/usnavy/8530729727/sizes/l/" content="United States Government Work (Flickr)"></attribute>
+<attribute src="media/ccetc/illus-uncertainty-sign.jpg" href="http://www.emdocs.net/diagnostic-uncertainty/" content="emDocs 'Multiple Layers of Diagnostic Uncertainty'"></attribute>
+<attribute src="media/ccetc/illus-pediatrics.jpg" href="https://pediatricethicscope.org/article/embracing-diagnostic-uncertainty/" content="Pediatric Ethiscope Embracing Diagnostic Uncertainty"></attribute>
+<attribute src="media/ccetc/dog-plane.jpg" href="https://www.flickr.com/photos/dapuglet/29906341933/sizes/c/" content="CC by DaPuglet (Flickr)"></attribute>
+<attribute src="media/ccetc/house-with-number.jpg" href="https://www.flickr.com/photos/mlinksva/4946768961/sizes/w/" content="CC by mlinksva (Flickr)"></attribute>
+<attribute src="media/ccetc/two-moons-confidence.png" href="https://github.com/max-andr/relu_networks_overconfident" content="By @max-andr (github) /relu_networks_overconfident"></attribute>
+<attribute src="media/ccetc/cifar-to-svhn-relu.png" href="https://github.com/max-andr/relu_networks_overconfident" content="By @max-andr (github) /relu_networks_overconfident"></attribute>
+<attribute src="media/bayes-neon.jpg" href="https://en.wikipedia.org/wiki/Bayes%27_theorem" content="Wikipedia's Bayes' Theorem"></attribute>
+<attribute class="whitebg" src="media/nns/dropout-full.svg" href="http://alexlenail.me/NN-SVG/index.html" content="Some Base NN have been generated by NN SVG"></attribute>
+<attribute class="whitebg" src="media/shots/gp-deep-gp.png" href="http://proceedings.mlr.press/v33/duvenaud14.pdf" content="Avoiding pathologies in very deep networks, Duvenaud et al."></attribute>
+<attribute class="whitebg" src="media/shots/gp-simple-periodic.png" href="https://www.digitalocean.com/community/tutorials/a-guide-to-time-series-forecasting-with-prophet-in-python-3" content="Tutorial by Digital Ocean"></attribute>
+<attribute class="contain" src="media/logos-bar.svg" href="https://deepimaging2021.sciencesconf.org/" content="DeepImaging2021 website"></attribute>
+<attribute class="whitebg" src="media/set1/aleo-epistemic-uncertainty.png" href="https://matplotlib.org/" content="Plots using Python and numpy+sklearn+matplotlib"></attribute>
+<attribute class="whitebg" src="media/qr-github-pres.svg" href="https://q-r-code.fr/" content="QR code generator"></attribute>
+</div>
+
+
+@: .denser
+## References and pointers
+- Wikipedia articles
+  - <w href="Bayesian_probability">Bayesian Probabilities</w>
+  - <w href="Imprecise_probability">Imprecise Probabilities</w>
+  - <w href="Dempster–Shafer_theory">Dempster–Shafer Theory (DST)</w>
+  - <w href="Scoring_rule">Proper Scoring Rules</w> (and calibration)
+- Some (limited) pointers to research articles
+  - Unclassified
+    - The need for uncertainty quantification in machine-assisted medical decision making
+  - On calibration
+    - Well-calibrated regression uncertainty in medical imaging with deep learning
+  - About dropout
+    - Variational dropout and the local reparameterization trick
+    - Variational dropout sparsifies deep neural networks
+    - Variational Gaussian dropout is not Bayesian
+    - Learnable Bernoulli dropout for Bayesian deep learning
+  - Evidential deep learning
+    - Evidential Deep Learning to Quantify Classification Uncertainty <a href="https://arxiv.org/abs/1806.01768">.</a>
+    - Deep Evidential Regression <a href="https://proceedings.neurips.cc/paper/2020/file/aab085461de182608ee9f607f3f7d18f-Paper.pdf">.</a>
+- Some online references
+  - <a href="http://statweb.stanford.edu/~susan/phylo/index/node30.html">Susan Holmes on Bayesian statistics</a>
+  - <a href="https://www.youtube.com/watch?v=toTcf7tZK8c">NeurIPS lecture on evidential deep learning</a> 
+
+@////////////////////////////////////////
+@// closing, no highlight
+@eval-header: return highlightLi(part+=1)
+# @copy: global
+
+@eval-header: $o.MORE = 'Questions?'
+# @copy: endslide
+
+
+@/////# END
+
+@//// TODO add supplementary slide after recording
+@// PGM VI
+@// PGM AE?
+@// log proba and log prior gives regularization
+
+      </template>
+
+    <script src="./nuedeck/nuedeck-deps.js"></script>
+    <script src="./nuedeck/nuedeck.js"></script>
+
+  </body>
+</html>
