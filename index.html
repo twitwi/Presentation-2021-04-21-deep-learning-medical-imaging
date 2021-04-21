@@ -630,7 +630,7 @@ Case 2 !<br/>
 - Compared to Variational Autoencoders (VAE) {.libyli}
   - Also use the "reparameterization trick"
     - change $w \sim \cal{N}(μ, σ^2)$   to   $ε \sim \cal{N}(0, 1) ~;~ w = μ + ε . σ$
-    - allow the gradient to "flow" to $w$ and $σ$
+    - allow the gradient to "flow" to $μ$ and $σ$
       <br/>*(VAE: allow the gradient to flow to the encoder)*{.light}
   - Model distribution on millions of parameters
     <br/> *(VAE: distribution on latent variables, only a few, but for each data point)*{.light}
